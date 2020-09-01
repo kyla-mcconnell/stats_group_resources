@@ -1,0 +1,283 @@
+---
+title: "Regression Review"
+author: "Kyla McConnell & Julia Müller"
+date: "8/31/2020"
+output: html_document
+---
+
+## Regression review
+
+In this exercise, we'll use a Tidy Tuesday dataset to get back into regression models to help us understand mixed effects models, which we'll get into within the next few sessions. 
+
+First, take a look at the dataset (more info here: https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-07-07/readme.md)
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(tidymodels)
+library(corrplot)
+library(car)
+library(dotwhisker)
+library(rms)
+
+coffee <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-07-07/coffee_ratings.csv')
+```
+
+### Data wrangling
+
+Starting off with a small data wrangling challenge: 
+a) Only keep the variables total_cup_points, species, country_of_origin, processing_method, aroma, flavor, aftertaste, acidity, body, balance, uniformity, clean_cup, sweetness, and cupper_points
+b) Convert species and country_of_origin to factors
+c) Save the resulting data frame as "coffee".
+d) Additionally, create a new dataset called "arabica" which only contains arabica beans.
+
+```{r}
+coffee <- coffee %>% 
+  select(c(total_cup_points, species, country_of_origin, processing_method, aroma, flavor, aftertaste, acidity, body, balance, uniformity, clean_cup, sweetness, cupper_points)) %>% 
+  mutate(species = factor(species), 
+         country = factor(country_of_origin))
+
+arabica <- coffee %>%
+  filter(species == "Arabica")
+```
+
+### Modeling
+
+Using this data, we'd like to answer the following questions:
+(1) For the arabica beans only: Do ratings for aroma, flavour, balance, and clean_cup predict the overall rating (total_cup_points) of the coffee?
+(2) Can we use the variables acidity, sweetness, clean_cup, and balance to predict the type of bean?
+
+For one of the hypotheses above, think about how you could use a regression model to answer the question. You may have to wrangle a bit more first. 
+
+First, do some exploratory data analysis about your question. This may include some descriptive statistics, some graphing, (tidyverse) summarizing, checking out correlations, etc.:
+
+#### Question 1
+
+```{r, error=FALSE, warning=FALSE}
+#Look at means of each group (rounded to the 10s for a better overview)
+arabica %>% 
+  group_by(round(total_cup_points/10, 0)) %>% 
+  summarise(mean(aroma), mean(flavor), mean(balance), mean(clean_cup))
+
+#Plot line graphs of predictors vs. DV
+ggplot(aes(x=total_cup_points, y=aroma), data=arabica) +
+  geom_smooth()
+
+ggplot(aes(x=total_cup_points, y=flavor), data=arabica) +
+  geom_smooth()
+
+ggplot(aes(x=total_cup_points, y=balance), data=arabica) +
+  geom_smooth()
+
+ggplot(aes(x=total_cup_points, y=clean_cup), data=arabica) +
+  geom_smooth()
+
+#Look at distribution of DV
+ggplot(aes(x=total_cup_points), data=arabica) +
+  geom_histogram()
+
+#On the histogram above, we can see that some points are 0, which might mess up our model
+arabica <- arabica %>% 
+  filter(total_cup_points > 1)
+
+#Check out correlation of predictors
+arabica %>% 
+  select(aroma, flavor, balance, clean_cup) %>% 
+  cor() %>% 
+  corrplot(method="number")
+```
+
+Then prepare your predictors and fit the most appropriate type of model: 
+
+```{r, error=FALSE, warning=FALSE}
+arabica <- arabica %>% 
+  mutate(aroma_z = scale(aroma, center = TRUE, scale = TRUE),
+         flavor_z = scale(flavor, center = TRUE, scale = TRUE),
+         balance_z = scale(balance, center = TRUE, scale = TRUE), 
+         clean_cup_z = scale(clean_cup, center = TRUE, scale = TRUE))
+
+arabica_model_full <- lm(total_cup_points ~ balance_z + aroma_z + flavor_z + clean_cup_z, data = arabica)
+
+tidy(arabica_model_full) %>% 
+  mutate(estimate = round(estimate, 2))
+
+#Collinearity looks fine below but is borderline... Otherwise, could have tried a reduced model
+arabica_model_1 <- lm(total_cup_points ~ aroma_z + clean_cup_z, data = arabica)
+arabica_model_2 <- lm(total_cup_points ~ flavor_z + clean_cup_z, data = arabica)
+arabica_model_3 <- lm(total_cup_points ~ balance_z + clean_cup_z, data = arabica)
+
+AIC(arabica_model_1, arabica_model_2, arabica_model_3)
+```
+
+And check the assumptions:
+```{r, error=FALSE, warning=FALSE}
+## Collinearity (should be under 10, or under 3/4 if you want to be more strict)
+vif(arabica_model_full) 
+
+## Check distribution of residuals a la Winter 2020 p110
+res <- residuals(arabica_model_full)
+par(mfrow = c(1,3))
+
+###histogram looks ok
+hist(res)
+
+###QQ plot 
+qqnorm(res)
+
+###Resids look ok, but looks like removing outliers might have improved our fit (i.e. the 65 score)
+plot(fitted(arabica_model_full), res)
+```
+
+Check model fit. If appropriate, use predict() to see what the model predicts for different values: 
+```{r, error=FALSE, warning=FALSE}
+#(1)
+## Measures of fit (r-squared, etc.)
+glance(arabica_model_full)
+
+## Predict new values
+arabica_model_raw <- lm(total_cup_points ~ balance + aroma + flavor + clean_cup, data = arabica)
+predictions <- tibble(balance = seq(0,10), flavor = seq(0,10), aroma = seq(0,10), clean_cup = seq(0,10))
+my_coffee <- tibble(balance = 6, flavor = 8, aroma = 9, clean_cup = 4)
+my_coffee$predicted_cupscore <- round(predict(arabica_model_raw, my_coffee), 0)
+my_coffee
+```
+
+
+#### Question 2
+
+First, do some exploratory data analysis about your question. This may include some descriptive statistics, some graphing, (tidyverse) summarizing, checking out correlations, etc.:
+
+```{r, error=FALSE, warning=FALSE}
+#Plot graphs of predictors vs. DV
+
+coffee %>% ggplot() +
+  aes(x = species, y = acidity) + 
+  geom_violin()
+
+coffee %>% ggplot() +
+  aes(x = species, y = sweetness) + 
+  geom_violin()
+
+coffee %>% ggplot() +
+  aes(x = species, y = clean_cup) + 
+  geom_violin()
+
+coffee %>% ggplot() +
+  aes(x = species, y = balance) + 
+  geom_violin()
+
+#In the violin plot, we can see that some points are 0, which might mess up our model
+coffee <- coffee %>% 
+  filter(aroma > 6, clean_cup > 6)
+```
+
+Check correlations of predictors
+```{r, error=FALSE, warning=FALSE}
+coffee %>% 
+  select(acidity, sweetness, clean_cup, balance) %>% 
+  cor() %>% 
+  corrplot(method="number")
+```
+Balance and acidity are correlated, but logistic regressions can handle some colinearity.
+
+Centering and scaling predictors:
+```{r, error=FALSE, warning=FALSE}
+coffee <- coffee %>% 
+  mutate(acidity_z = scale(acidity, center = TRUE, scale = TRUE),
+         sweetness_z = scale(sweetness, center = TRUE, scale = TRUE),
+         balance_z = scale(balance, center = TRUE, scale = TRUE), 
+         clean_cup_z = scale(clean_cup, center = TRUE, scale = TRUE))
+```
+
+Specifying model:
+```{r, error=FALSE, warning=FALSE}
+species_model_1 <- glm(species ~ sweetness_z + clean_cup_z, 
+                       data = coffee, family = binomial)
+species_model_2 <- glm(species ~ acidity_z + sweetness_z + clean_cup_z, 
+                       data = coffee, family = binomial)
+species_model_3 <- glm(species ~ acidity_z + sweetness_z + clean_cup_z + balance_z,
+                       data = coffee, family = binomial)
+
+anova(species_model_1, species_model_2, species_model_3, test = "Chisq")
+
+species_lrm_model <- lrm(species ~ sweetness_z + clean_cup_z,
+                       data = coffee)
+
+summary(species_model_1)
+confint(species_model_1)
+
+species_lrm_model
+```
+
+And check the assumptions:
+```{r, error=FALSE, warning=FALSE}
+rms::vif(species_lrm_model)
+
+car::influencePlot(species_model_1)
+coffee[c(716, 1055, 1250, 1283, 1322, 1323),]
+```
+
+Check model fit. Use predict() to see the performance: 
+```{r, error=FALSE, warning=FALSE}
+probability.table <- fitted(species_model_1)
+head(probability.table)
+
+coffee$predicted <- predict(species_model_1, newdata = coffee)
+coffee <- coffee %>% 
+  mutate(pred_cat = if_else(predicted > 0, "Robusta", "Arabica"))
+
+coffee %>% select(species, predicted, pred_cat)
+coffee %>% filter(species != pred_cat) %>% select(species, pred_cat)
+
+ctable <- table(coffee$species, coffee$pred_cat)
+ctable
+round((sum(diag(ctable))/sum(ctable))*100,2)
+```
+
+
+### Graphing
+
+For your hypothesis above, graph the model output with a dot-whisker plot or other appropriate plot style. Use the link below and Ch 11 in Winter 2020:
+https://cran.r-project.org/web/packages/dotwhisker/vignettes/dotwhisker-vignette.html
+
+```{r, error=FALSE, warning=FALSE}
+#(1)
+mycoefs <- arabica_model_full %>% 
+  tidy(conf.int = TRUE) %>% 
+  filter(term != "(Intercept)")
+
+mycoefs %>% 
+  ggplot(aes(x=term, y=estimate)) +
+  geom_point() +
+  geom_errorbar(aes(ymin=conf.low, ymax=conf.high),
+                width = 0.2) +
+  geom_hline(yintercept = 0, linetype = 2) +
+  coord_flip()
+
+
+#(2)
+dwplot(list(species_model_1, species_model_2, species_model_3)) +
+  theme_light()
+
+dwplot(list(species_model_1, species_model_2, species_model_3),
+       vline = geom_vline(xintercept = 0, colour = "grey60", linetype = 2)) %>%
+    relabel_predictors(c(acidity_z = "Acidity rating",                       
+                         sweetness_z = "Sweetness rating", 
+                         clean_cup_z = "Clean cup rating", 
+                         balance_z = "Balance")) +
+     theme_bw() + xlab("Coefficient Estimate") + ylab("") +
+     geom_vline(xintercept = 0, colour = "grey60", linetype = 2) +
+     ggtitle("Predicting type of coffee bean") +
+     theme(plot.title = element_text(face="bold"),
+           legend.justification = c(0, 0), 
+           legend.background = element_rect(colour="grey80"),
+           legend.title = element_blank()) 
+```
+
+### Reporting
+
+Now imagine that you want to present your work above. Write your analysis using precise and accurate statistical terminology. 
+
+...
+
+If you have time, make a nice markdown file with the important output, graphs and interpretation (without showing any unneccesary code.)
+

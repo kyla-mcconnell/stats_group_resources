@@ -38,7 +38,7 @@ d) Additionally, create a new dataset called "arabica" which only contains arabi
 ### Modeling
 
 Using this data, we'd like to answer the following questions:
-(1) For the arabica beans only: Do ratings for aroma, flavour, balance, and clean_cup predict the overall rating (total_cup_points) of the coffee?
+(1) For the arabica beans only: Do ratings for aroma, flavor, balance, and clean_cup predict the overall rating (total_cup_points) of the coffee?
 (2) Can we use the variables acidity, sweetness, clean_cup, and balance to predict the type of bean?
 
 For one of the hypotheses above, think about how you could use a regression model to answer the question. You may have to wrangle a bit more first. 
