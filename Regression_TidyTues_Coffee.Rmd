@@ -1,0 +1,90 @@
+---
+title: "Regression Review"
+author: "Kyla McConnell & Julia Müller"
+date: "8/31/2020"
+output: html_document
+---
+
+## Regression review
+
+In this exercise, we'll use a Tidy Tuesday dataset to get back into regression models to help us understand mixed effects models, which we'll get into within the next few sessions. 
+First, take a look at the dataset (more info [here](https://github.com/rfordatascience/tidytuesday/blob/master/data/2020/2020-07-07/readme.md)).
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(corrplot)
+library(car)
+library(dotwhisker)
+library(rms)
+
+coffee <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-07-07/coffee_ratings.csv')
+```
+
+
+### Data wrangling
+
+Starting off with a small data wrangling challenge: 
+a) Only keep the variables total_cup_points, species, country_of_origin, processing_method, aroma, flavor, aftertaste, acidity, body, balance, uniformity, clean_cup, sweetness, and cupper_points
+b) Convert species and country_of_origin to factors
+c) Save the resulting data frame as "coffee".
+d) Additionally, create a new dataset called "arabica" which only contains arabica beans.
+
+```{r}
+
+```
+
+
+### Modeling
+
+Using this data, we'd like to answer the following questions:
+(1) For the arabica beans only: Do ratings for aroma, flavour, balance, and clean_cup predict the overall rating (total_cup_points) of the coffee?
+(2) Can we use the variables acidity, sweetness, clean_cup, and balance to predict the type of bean?
+
+For one of the hypotheses above, think about how you could use a regression model to answer the question. You may have to wrangle a bit more first. 
+
+First, do some exploratory data analysis about your question. This may include some descriptive statistics, some graphing, (tidyverse) summarizing, checking out correlations, etc.:
+
+```{r}
+
+```
+
+Then prepare your predictors and fit the most appropriate type of model: 
+
+```{r}
+
+```
+
+And check the assumptions:
+```{r}
+
+```
+
+Check model fit. If appropriate, use predict() to see what the model predicts for different values: 
+```{r}
+
+```
+
+
+### Graphing
+
+For your hypothesis above, graph the model output with a dot-whisker plot or other appropriate plot style. Have a look at the dotwhisker package (vignette [here](https://cran.r-project.org/web/packages/dotwhisker/vignettes/dotwhisker-vignette.html)) and Ch 11 in Winter 2020:
+
+```{r}
+
+```
+
+
+### Reporting
+
+Now imagine that you want to present your work above. Write your analysis using precise and accurate statistical terminology. 
+
+"
+
+...
+
+
+"
+
+
+If you have time, make a nice markdown file with the important output, graphs and interpretation (without showing any unnecessary code.)
