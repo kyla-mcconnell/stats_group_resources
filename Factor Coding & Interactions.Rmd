@@ -1,0 +1,372 @@
+---
+title: "Factor Coding & Interactions"
+author: "Kyla McConnell"
+date: "6/17/2020"
+output: html_document
+---
+
+Sources: Winter Ch7 & Ch8
+
+```{r}
+library(tidyverse)
+library(broom)
+library(effects)
+```
+
+
+# Factor Coding
+
+## Treatment Coding 
+- AKA dummy coding
+- R default
+
+### With two levels
+- Reference level (default: alphabetical in R) coded as 0, other level as 1
+- Coefficient for the non-reference level reflects the change to the mean value of the reference group, i.e. if you have the groups A and B, with respective means of 5 and 7.5 in your DV, the coefficient for B when dummy coded would be +2.5
+- Whatever category is mentioned in the coefficient table (i.e. CategoryB) is the group coded as 1, the data for the group coded as 0 is hidden in the intercept 
+
+```{r}
+library(tidyverse)
+library(broom)
+
+senses <- read_csv("data/winter_2016_senses_valence.csv") %>% 
+  filter(Modality %in% c("Taste", "Smell"))
+
+# code below makes no difference but is explicit! (aka you should do this!)
+#senses <- senses %>% 
+  #mutate(Modality = factor(Modality, levels = c("Smell", "Taste")))
+
+#contrasts(senses$Modality) <- contr.treatment(2)
+
+senses_treatment <- lm(Val ~ Modality, data = senses)
+
+tidy(senses_treatment)
+```
+- In the example above, Smell is the reference level. The average valence of Smell words is 5.47. The average Taste word valence is .337 higher.
+- Below, you can see that the model only makes two predictions, one for each group. 
+
+```{r}
+head(fitted(senses_treatment))
+```
+
+-You can see that the predicted value for Smell words is the intercept in this simple model, and for Taste words is the intercept plus the Modality coefficient.
+
+```{r}
+senses_pred <- tibble(Modality = unique(senses$Modality))
+senses_pred$fit <- predict(senses_treatment, senses_pred)
+senses_pred
+```
+
+- Change the reference level using relevel() -- column must be a factor
+```{r}
+senses_2 <- senses %>%
+  mutate(Modality_re = relevel(Modality, ref= "Taste")) #normally you would not make a new column
+
+# again, not needed below but better to be explicit
+# contrasts(senses_2$Modality_re) <- contr.treatment(2)
+
+lm(Val ~ Modality_re, data=senses_2) %>% 
+  tidy %>% 
+  select(term, estimate)
+```
+
+- The releveled predictor shows the same predictions expressed differently (5.8 & (5.8 -.3) compared to 5.5 & (5.5 + .3))
+- Pick the reference level based on your research question / interpretability. If you don't have an interaction term, the coefficients show the same info -- however, with an interaction term, things get more tricky. 
+
+### With more than two levels
+
+- With more than two levels, everything is compared only to the reference level in dummy coding
+- Reference level is the one that is not shown (here Sight, because it is first alphabetically)
+
+```{r}
+senses <- read_csv("data/winter_2016_senses_valence.csv") %>%
+  mutate(Modality = factor(Modality))
+
+levels(senses$Modality)
+
+# again, not needed below but better to be explicit
+# contrasts(senses_all$Modality) <- contr.treatment(3)
+
+sense_all <- lm(Val ~ Modality, data = senses) 
+
+sense_all%>% 
+  tidy %>% 
+  select(term, estimate)
+```
+
+- To get the other estimates use predict() as above, now they are not only in relation to the reference level but the raw predictions
+```{r}
+sense_preds <- tibble(Modality=sort(unique(senses$Modality)))
+sense_preds$fit <- round(predict(sense_all, sense_preds), 2)
+sense_preds
+```
+
+
+## Sum coding 
+
+- One group is assigned -1 and the other group is assigned 1 
+- The intercept becomes the middle of the two groups / halfway between both categories -> "the y-value of the intercept is now the mean of the means"
+- Because the difference between the two groups now equals 2 (not 1 as with treatment coding), the coefficient becomes HALF the difference of the means ("you can think of this as sitting at 0 in the middle of the two categories. In one direction, you look "up" to the taste words. In the other direction, you look "down" to the smell words." - p125)
+
+```{r}
+contrasts(senses_2$Modality) #this shows the current (dummy) coding of the Modality column
+
+senses_2$Modality_sum <- senses_2$Modality #create new column for sum coding (only for demonstration, you could use the existing column in an actual analysis)
+contrasts(senses_2$Modality_sum) <- contr.sum(2) #becuase there are two levels, takes the argument 2
+
+contrasts(senses_2$Modality_sum) #shows the levels of the new, sum-coded column
+```
+
+- Note: to explicitly make a treatment / dummy coded column, use contr.treatment(n) where n is the number of levels
+
+- Now, model with the sum coded factor:
+```{r}
+lm(Val ~ Modality_sum, data=senses_2) %>% 
+  tidy %>% select(term, estimate)
+```
+- The slope is now halved 
+- The intercept is now equal to the mean of the means 
+- The coefficient is revealed as being sum coded 
+
+Now: 
+taste = 5.6 + (-.2)*(-1) = 5.4
+smell = 5.6 - (-.2)*(1) = 5.8
+
+## Helmert coding
+- Used for ordered categorical predictors: compares the levels to the mean of the subsequent levels
+- i.e. for BA, MA, PhD -> compares MA to mean of BA, PhD to mean of MA and BA combined
+- Coded with contr.helmert(n) where n is the number of levels
+
+## Sequential difference coding
+- Used when you expect level 3 to be greater than level 2 and level 2 to be greater than level 1 (look up more details if this applies to you!)
+
+# Interactions
+- Interactions* describe how two or more predictors act together on a DV 
+- e.g. plant growth ~ water + sun + water:sun (just watering a plant or just putting it on the windowsill won't help it grow - it needs both)
+- Interaction terms affect the product of predictors multiplied together, i.e. y = b0 + b1x1 + b2x2 + b3(x1*x2)
+- Slope of interaction shows strength of this effect
+  - if close to 0: weak/no interaction
+  - if larger number: stronger interaction
+* also called 'moderator variables (especially in psychology)
+
+## Categorical * Continuous Interactions
+- An interaction in this context means that the extent to which the members of each group differ depends on which value of the continuous variable you consider
+- In this example: "the degree to which nouns and verbs differ from each other in terms of iconicity also depends on what SER value one considers"
+
+```{r}
+icon <- read_csv("data/perry_winter_2017_iconicity.csv") 
+NV <- filter(icon, POS %in% c("Noun", "Verb"))
+
+NV_int_mdl <- lm(Iconicity ~ SER * POS, data = NV)
+tidy(NV_int_mdl) %>% select(term, estimate)
+
+plot(NV_int_mdl)
+```
+
+- With the interaction term above, the meaning of the coefficients has now changed:
+  - SER slope: now the slope for sensory experience *only for the nouns* (the reference level)
+  - POSVerb slope: the noun-verb difference *only for words with 0 SER*
+  - With this uncentered predictor, the difference of sensory experience for verbs (which cannot be lower than 1) is negative
+  
+- Center predictor to make coefficients more interpretable
+```{r}
+NV <- NV %>% 
+  mutate(SER_c = SER - mean(SER, na.rm=TRUE))
+
+NV_int_mdl_c <- lm(Iconicity ~ SER_c * POS, data = NV)
+
+tidy(NV_int_mdl_c) %>% select(term, estimate)
+```
+
+- By centering SER, the POS coefficient has now changed: It now represents the difference between nouns and verbs for words with *average SER* -- much more interpretable
+
+What happens if we change the factor coding?
+By default, R uses treatment coding (0 and 1) to represent the levels of a factor numerically
+```{r}
+NV$POS <- as.factor(NV$POS)
+contrasts(NV$POS)
+```
+
+Let's change it to contrast coding:
+```{r}
+contrasts(NV$POS) <- contr.sum(2)
+contrasts(NV$POS)
+```
+
+...and compare the model outputs:
+```{r}
+NV_mdl_sum <- lm(Iconicity ~ SER_c * POS, data = NV)
+
+tidy(NV_mdl_sum) %>% select(term, estimate)
+summary(NV_mdl_sum)
+```
+
+Visualisation of the interaction (should look the same no matter the factor coding):
+```{r}
+icon_effs <- allEffects(NV_int_mdl_c)
+
+plot(icon_effs, ylab = "predicted iconicity value", rug = FALSE, multiline = TRUE, main = "Interaction plot SER and ARC")
+```
+
+
+## Categorical * Categorical Interactions
+
+```{r}
+sim <- read_csv("data/winter_matlock_2013_similarity.csv") %>% 
+  filter(!is.na(Distance))
+
+sim_mdl_int <- lm(Distance ~ Phon * Sem, data=sim)
+
+tidy(sim_mdl_int) %>% select(term, estimate)
+```
+- The intercept shows the prediction for a data point at both reference levels, here phonologically different and semantically different
+- Because of the interaction, the PhonSimilar coefficient is now the difference between phonologically similar and phonologically different conditions *for semantically different words only* (as this is the reference level)
+- Similarly, the SemSim coefficient only shows the effect of semantically similarity *for phonologically different words*
+
+Visualisation:
+```{r}
+icon_effs <- allEffects(sim_mdl_int)
+
+plot(icon_effs, ylab = "predicted distance", rug = FALSE, multiline = TRUE, main = "Interaction plot Phon and Sem")
+```
+
+## Continuous * Continuous Interactions
+
+```{r}
+lonely <- read_csv('data/sidhu&pexman_2017_iconicity.csv')
+lonely
+```
+
+additional variable: ARC - small values = little potential for confusing words, large values = words easily confused
+-> hypothesis: since iconicity can lead to confusion, words with large ARCs are less iconic
+
+Removing negative iconicity ratings:
+```{r}
+lonely <- lonely %>% 
+  filter(Iconicity >= 0)
+```
+
+Fitting a model with the interaction:
+```{r}
+lonely_mdl <- lm(Iconicity ~ SER * ARC, data = lonely)
+tidy(lonely_mdl) %>% select(term, estimate)
+```
+
+Interpretation:
+- Coefficients shown for other variable = 0
+- Intercept: predicted iconicity, SER = 0, ARC = 0
+- Slope for SER is for ARC = 0, and vice versa
+-> hard to interpret, so let's scale and center
+
+```{r}
+lonely <- mutate(lonely,  
+                 SER_z = (SER - mean(SER))/ sd(SER),  
+                 ARC_z = (ARC - mean(ARC))/ sd(ARC))
+```
+
+New model:
+```{r}
+lonely_mdl_z <- lm(Iconicity ~ SER_z * ARC_z,  data = lonely)
+tidy(lonely_mdl_z) %>% select(term, estimate)
+```
+
+Interpretation:
+- Coefficients now shown for mean of other variable because that's what 0 means now
+- ARC: negative slope -> words less iconic for higher ARC values
+- SER: positive slope -> perceptual words more iconic
+- interaction: negative slope -> as SER and ARC both increase, words are less iconic -> effects cancelling each other out
+- SER slope positive, so with interaction: effect of SER lessened for words with high ARC values
+
+Can be visualised as Winter shows or using the effects package, e.g.
+```{r}
+icon_effs <- allEffects(lonely_mdl_z, 
+                         xlevels = list(ARC_z = c(-2, -1, 0, 1, 2)))
+plot(icon_effs, ylab = "predicted iconicity value", rug = FALSE, multiline = TRUE, main = "Interaction plot SER and ARC")
+```
+
+
+# Nonlinear effects
+
+```{r}
+vinson_yelp <- read_csv('data/vinson_dale_2014_yelp.csv')
+vinson_yelp
+```
+
+AUI = unexpectedness (measure of informativeness)
+
+Make a plot of the averages across Yelp review stars:
+```{r}
+vinson_yelp %>% group_by(stars) %>%
+  summarize(AUI_mean = mean(across_uni_info)) %>%
+  ggplot(aes(x = stars, y = AUI_mean)) +
+  geom_line(linetype = 2) +
+  geom_point(size = 3) +
+  theme_minimal()
+```
+Graph suggests that less neutral posts (no matter if strongly positive or strongly negative) use fewer predictable words
+-> effect looks quadratic ("parabolic")
+
+Reminder: polynomial effects
+Squared 'x' (x * x):
+```{r}
+x <- -10:10
+plot(x, x ^ 2, type = 'l', main = 'Quadratic')
+```
+And cubed 'x' (x * x * x):
+```{r}
+x <- -10:10
+plot(x, x ^ 3, type = 'l', main = 'Cubic')
+```
+
+polynomial regression: enter polynomially transformed version of predictor
+-> size and sign of coefficient: 
+- if large and positive, U-shaped curve
+- if large and negative, inverted U
+- if close to 0: straight line
+
+Create a squared review-stars variable:
+```{r}
+vinson_yelp <- mutate(vinson_yelp,
+                      stars_c = stars - mean(stars),
+                      stars_c2 = stars_c ^ 2)
+```
+
+Add linear and squared effects to a model:
+```{r}
+yelp_mdl <- lm(across_uni_info ~ stars_c + stars_c2,
+               data = vinson_yelp)
+```
+
+Interpret coefficients:
+```{r}
+tidy(yelp_mdl) %>% select(term:estimate)
+```
+
+Create tibble for predict:
+```{r}
+yelp_preds <- tibble(stars_c = sort(unique(vinson_yelp$stars_c)))
+yelp_preds <- mutate(yelp_preds, stars_c2 = stars_c ^ 2)
+```
+
+Append predictions:
+```{r}
+yelp_preds$fit <- predict(yelp_mdl, yelp_preds)
+```
+
+Check:
+```{r}
+yelp_preds
+```
+
+Make a plot of these predictions:
+```{r}
+yelp_preds %>%
+  ggplot(aes(x = stars_c, y = fit)) +
+  geom_point(size = 3) +
+  geom_line(linetype = 2) +
+	theme_minimal()
+```
+
+adding higher-order polynomials is also possible but get increasingly tricky to interpret
+also: meaningful connection to research question might be lost
+
