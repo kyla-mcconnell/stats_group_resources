@@ -1,0 +1,98 @@
+---
+title: "Mixed model - Winter's politeness data"
+author: "Julia Müller"
+date: "12 10 2020"
+output: html_document
+---
+
+# Packages
+```{r}
+library(tidyverse)
+library(lme4)
+library(afex)
+library(MuMIn) 
+library(lattice)
+```
+
+# Data and initial questions
+```{r}
+politeness <- read.csv("data/politeness_data.csv", stringsAsFactors = TRUE)
+```
+
+frequency: voice pitch in Hertz
+attitude: polite or informal
+scenario = item (e.g. one scenario was "asking for a favour")
+
+The model should predict frequency based on attitude and gender.
+
+Which variables should be treated as random effects?
+Why can't we just fit a regression instead of a mixed model?
+
+## Visualisations
+Create boxplots of
+(a) the frequency for each subject
+(b) the frequency for each scenario
+```{r}
+
+
+```
+
+# Factor coding
+Make sure your categorical factors are coded as factors. Make a choice about factor coding and code it explicitly.
+```{r}
+
+```
+
+
+# Model fitting
+Construct a full model (random intercepts and random slopes). What do you notice? 
+
+Then fit a reduced model.
+```{r}
+
+```
+
+Interpretation of fixed effects:
+
+## Model comparisons
+
+### Fixed effects
+Create a null model (intercept only), one model with only gender as a predictor, and compare the two to the full model.
+```{r}
+
+```
+
+Which model has the best fit?
+
+### Random effects
+Let's check if both random effects seem necessary.
+To compare the random effects structure of models, we need to set REML = TRUE in the model call and refit = FALSE in the anova call.
+Model without subject intercept has singular fit, again.
+
+```{r}
+
+```
+Which model has the best fit?
+
+
+## Bonus: Model fitting with afex
+Winter uses the afex package, try this out instead of lme4 and compare the output. Hint: the call starts with mixed()
+```{r}
+
+```
+
+### R squared
+How can you calculate the R2 for a mixed model? 
+```{r}
+
+```
+
+### Bonus: Lattice package "Caterpillar plots"
+Check out the documentation for the lattice package. Adapt the following code for your winner model. Can you interpret what this is plotting? Hint: Replace "id" with a term that has both a random intercept and a random slope.
+    dotplot(ranef(mdl_fortp),
+    scales = list(x = list(relation = 'free')))[['id']]
+    
+```{r}
+
+```
+  

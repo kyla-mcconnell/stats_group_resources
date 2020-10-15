@@ -28,15 +28,16 @@ library(effects)
 ```{r}
 library(tidyverse)
 library(broom)
+library(effects)
 
 senses <- read_csv("data/winter_2016_senses_valence.csv") %>% 
   filter(Modality %in% c("Taste", "Smell"))
 
 # code below makes no difference but is explicit! (aka you should do this!)
-#senses <- senses %>% 
-  #mutate(Modality = factor(Modality, levels = c("Smell", "Taste")))
+senses <- senses %>% 
+  mutate(Modality = factor(Modality, levels = c("Smell", "Taste")))
 
-#contrasts(senses$Modality) <- contr.treatment(2)
+contrasts(senses$Modality) <- contr.treatment(2)
 
 senses_treatment <- lm(Val ~ Modality, data = senses)
 
@@ -63,7 +64,7 @@ senses_2 <- senses %>%
   mutate(Modality_re = relevel(Modality, ref= "Taste")) #normally you would not make a new column
 
 # again, not needed below but better to be explicit
-# contrasts(senses_2$Modality_re) <- contr.treatment(2)
+ contrasts(senses_2$Modality_re) <- contr.treatment(2)
 
 lm(Val ~ Modality_re, data=senses_2) %>% 
   tidy %>% 
@@ -85,7 +86,7 @@ senses <- read_csv("data/winter_2016_senses_valence.csv") %>%
 levels(senses$Modality)
 
 # again, not needed below but better to be explicit
-# contrasts(senses_all$Modality) <- contr.treatment(3)
+ #contrasts(senses$Modality) <- contr.treatment(5)
 
 sense_all <- lm(Val ~ Modality, data = senses) 
 
@@ -109,19 +110,19 @@ sense_preds
 - Because the difference between the two groups now equals 2 (not 1 as with treatment coding), the coefficient becomes HALF the difference of the means ("you can think of this as sitting at 0 in the middle of the two categories. In one direction, you look "up" to the taste words. In the other direction, you look "down" to the smell words." - p125)
 
 ```{r}
-contrasts(senses_2$Modality) #this shows the current (dummy) coding of the Modality column
+contrasts(senses$Modality) #this shows the current (dummy) coding of the Modality column
 
-senses_2$Modality_sum <- senses_2$Modality #create new column for sum coding (only for demonstration, you could use the existing column in an actual analysis)
-contrasts(senses_2$Modality_sum) <- contr.sum(2) #becuase there are two levels, takes the argument 2
+senses$Modality_sum <- senses$Modality #create new column for sum coding (only for demonstration, you could use the existing column in an actual analysis)
+contrasts(senses$Modality_sum) <- contr.sum(2) #becuase there are two levels, takes the argument 2
 
-contrasts(senses_2$Modality_sum) #shows the levels of the new, sum-coded column
+contrasts(senses$Modality_sum) #shows the levels of the new, sum-coded column
 ```
 
 - Note: to explicitly make a treatment / dummy coded column, use contr.treatment(n) where n is the number of levels
 
 - Now, model with the sum coded factor:
 ```{r}
-lm(Val ~ Modality_sum, data=senses_2) %>% 
+lm(Val ~ Modality_sum, data=senses) %>% 
   tidy %>% select(term, estimate)
 ```
 - The slope is now halved 
@@ -129,8 +130,8 @@ lm(Val ~ Modality_sum, data=senses_2) %>%
 - The coefficient is revealed as being sum coded 
 
 Now: 
-taste = 5.6 + (-.2)*(-1) = 5.4
-smell = 5.6 - (-.2)*(1) = 5.8
+taste = 5.6 + (-.16)*(-1) = 5.4
+smell = 5.6 - (-.16)*(1) = 5.8
 
 ## Helmert coding
 - Used for ordered categorical predictors: compares the levels to the mean of the subsequent levels
@@ -161,6 +162,10 @@ NV_int_mdl <- lm(Iconicity ~ SER * POS, data = NV)
 tidy(NV_int_mdl) %>% select(term, estimate)
 
 plot(NV_int_mdl)
+
+icon_effs <- allEffects(NV_int_mdl)
+
+plot(icon_effs, ylab = "predicted iconicity value", rug = FALSE, multiline = TRUE, main = "Interaction plot SER and ARC")
 ```
 
 - With the interaction term above, the meaning of the coefficients has now changed:
@@ -187,7 +192,7 @@ NV$POS <- as.factor(NV$POS)
 contrasts(NV$POS)
 ```
 
-Let's change it to contrast coding:
+Let's change it to sum coding:
 ```{r}
 contrasts(NV$POS) <- contr.sum(2)
 contrasts(NV$POS)
@@ -199,6 +204,10 @@ NV_mdl_sum <- lm(Iconicity ~ SER_c * POS, data = NV)
 
 tidy(NV_mdl_sum) %>% select(term, estimate)
 summary(NV_mdl_sum)
+
+icon_effs <- allEffects(NV_mdl_sum)
+
+plot(icon_effs, ylab = "predicted iconicity value", rug = FALSE, multiline = TRUE, main = "Interaction plot SER and ARC")
 ```
 
 Visualisation of the interaction (should look the same no matter the factor coding):
@@ -213,15 +222,28 @@ plot(icon_effs, ylab = "predicted iconicity value", rug = FALSE, multiline = TRU
 
 ```{r}
 sim <- read_csv("data/winter_matlock_2013_similarity.csv") %>% 
-  filter(!is.na(Distance))
+  filter(!is.na(Distance)) %>% 
+  mutate(Phon = as.factor(Phon),
+         Sem = as.factor(Sem))
+
+contrasts(sim$Phon) <- contr.sum(2)
+contrasts(sim$Sem) <- contr.sum(2)
 
 sim_mdl_int <- lm(Distance ~ Phon * Sem, data=sim)
 
 tidy(sim_mdl_int) %>% select(term, estimate)
+
+summary(sim_mdl_int)
 ```
 - The intercept shows the prediction for a data point at both reference levels, here phonologically different and semantically different
 - Because of the interaction, the PhonSimilar coefficient is now the difference between phonologically similar and phonologically different conditions *for semantically different words only* (as this is the reference level)
 - Similarly, the SemSim coefficient only shows the effect of semantically similarity *for phonologically different words*
+
+Simple effects: the influence of one predictor at a given level of another predictor (the case with treatment coded categorical variables)
+  - can't be interpretted in isolation, can only be intrepretted if you know what the level of the other factor is
+
+Main effects: the influence of one predictor across/regardless of the level of the other predictor (the case with sum coded categorical variables)
+  - can (basically) be intpretted as the overall effect of that level of that variable, "independent" of the other variable's level
 
 Visualisation:
 ```{r}
